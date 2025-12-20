@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Robótica Ari de Sá</title>
+    
+    <!-- Ícones do App (Busca arquivos físicos) -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <!-- Fontes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Bibliotecas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Firebase (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        h1, h2, h3, .font-tech { font-family: 'Rajdhani', sans-serif; }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
+        /* Estilos de Impressão (A4 Otimizado) */
+        .a4-paper {
+            width: 210mm; height: 297mm;
+            padding: 5mm 10mm;
+            margin: 0 auto; background: white; color: black;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .print-line { border-bottom: 1px solid #cbd5e1; height: 1.5rem; width: 100%; display: block; }
+        .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+        
+        @media print {
+            body { background-color: white; }
+            .no-print { display: none !important; }
+            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; padding: 5mm; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- PREVENÇÃO DE ERROS ---
+        window.addEventListener('unhandledrejection', event => {
+            if (!event.reason || event.reason.isTrusted) { event.preventDefault(); return; }
+            console.warn("Silent Error:", event.reason); event.preventDefault(); 
+        });
+
+        // --- CONFIGURAÇÃO ---
+        const TEACHER_PASSWORD = "TE-Robotic@"; 
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyAQj8TVhPdepN5q-9_a2ccmSKXGFFZiQTQ",
+            authDomain: "robotic-ari.firebaseapp.com",
+            projectId: "robotic-ari",
+            storageBucket: "robotic-ari.firebasestorage.app",
+            messagingSenderId: "252441234438",
+            appId: "1:252441234438:web:186d4a6c4e688606bb0787",
+            measurementId: "G-164BG1EM4C"
+        };
+
+        if (!firebase.apps.length) { try { firebase.initializeApp(firebaseConfig); } catch (e) {} }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
+
+        // --- DADOS CONECT3 ---
+        const CONECT3_DATA = {
+            worldConnection: ["Transporte & Trânsito 🚗", "Indústria & Máquinas 🏭", "Casa Inteligente 🏠", "Natureza & Animais 🌿", "Exploração Espacial 🚀", "Games & Diversão 🎮", "Arte & Música 🎨", "Esportes ⚽", "Ciências 🔬", "História 🏛️", "Geografia 🌎", "Matemática ➗"],
+            resources: ["Sensores (Ver/Sentir) 📡", "Motores (Mover) ⚙️", "Engrenagens (Força) 🔧", "Hub (Cérebro) 🧠", "Vigas (Estrutura) 🏗️", "Luzes (Sinalizar) 💡"],
+            constructionChallenges: ["Encaixe Difícil 🧩", "Estrutura Frágil 🏚️", "Muitos Cabos 🔌", "Peça Faltando 🔍", "Tempo Curto ⏳", "Montagem Fluiu Bem ✨"],
+            missionProgramming: ["Sensor de Cor/Linha 🎨", "Sensor de Distância 👀", "Contar Giros/Graus 📐", "Condicional (Se...) ❓", "Multitarefa (Luz+Som) ⚡", "Cálculos Matemáticos ➗"],
+            testStatus: ["Missão Perfeita! 🏆", "Pequenos Ajustes 🔧", "Falha Mecânica 🛠️", "Falha no Código 💻", "Não funcionou 🛑"],
+            improvementType: ["Estrutura (Mais forte) 💪", "Estética (Mais bonito) 🎨", "Código (Mais esperto) 🧠", "Funcionalidade (Novo poder) 🚀", "Agilidade (Mais rápido) ⏱️"],
+            presentationFeeling: ["Confiantes e Claros 😎", "Um pouco nervosos 😬", "Trabalho em Equipe 🤝", "Precisamos ensaiar mais 🗣️", "Foi Divertido 😄"]
+        };
+
+        const SPIKE_BLOCKS = [
+            { id: 'start', label: 'Quando Iniciar', color: 'bg-yellow-400', icon: 'play' },
+            { id: 'motor', label: 'Ligar Motor', color: 'bg-blue-500', icon: 'settings' },
+            { id: 'move', label: 'Mover', color: 'bg-pink-400', icon: 'arrow-right' },
+            { id: 'light', label: 'Luz', color: 'bg-purple-500', icon: 'sun' },
+            { id: 'sound', label: 'Som', color: 'bg-purple-400', icon: 'music' },
+            { id: 'wait', label: 'Esperar', color: 'bg-orange-400', icon: 'clock' },
+            { id: 'loop', label: 'Repetir', color: 'bg-orange-500', icon: 'repeat' },
+            { id: 'if', label: 'Se... Então', color: 'bg-orange-500', icon: 'git-branch' },
+            { id: 'sensor', label: 'Sensor', color: 'bg-teal-400', icon: 'eye' },
+            { id: 'math', label: 'Operador', color: 'bg-green-500', icon: 'plus' }
+        ];
+
+        // --- COMPONENTES UI ---
+        const LucideIcon = ({ name, className = "" }) => {
+            const ref = React.useRef(null);
+            React.useEffect(() => {
+                if (ref.current && window.lucide) {
+                    const temp = document.createElement('i');
+                    temp.setAttribute('data-lucide', name);
+                    if (className) temp.className = className;
+                    ref.current.innerHTML = '';
+                    ref.current.appendChild(temp);
+                    window.lucide.createIcons({ root: ref.current });
+                }
+            }, [name, className]);
+            return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}></span>;
+        };
+
+        const Card = ({ children, className = "" }) => <div className={`bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-xl ${className}`}>{children}</div>;
+
+        const Button = ({ onClick, children, variant = 'primary', disabled = false, iconName, className = "", size="md" }) => {
+            const base = "flex items-center justify-center rounded-lg font-bold font-tech uppercase tracking-wide transition-all active:scale-95 cursor-pointer no-print";
+            const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-3 text-sm", lg: "px-6 py-4 text-lg" };
+            const variants = {
+                primary: "bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-500/20",
+                secondary: "bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600",
+                success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20",
+                danger: "bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50",
+                outline: "border-2 border-slate-600 hover:border-cyan-400 text-slate-300 hover:text-cyan-400 bg-transparent"
+            };
+            return (
+                <button onClick={onClick} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}>
+                    {disabled ? <span>...</span> : <div className="flex items-center gap-2">{iconName && <LucideIcon name={iconName} className="w-5 h-5" />}{children}</div>}
+                </button>
+            );
+        };
+
+        const Input = ({ label, value, onChange, placeholder, type="text" }) => (
+            <div className="mb-4">
+                <label className="block text-cyan-400 text-xs font-bold mb-1 uppercase font-tech tracking-wider">{label}</label>
+                <input type={type} value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-slate-900 border border-slate-700 text-white rounded p-3 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+            </div>
+        );
+
+        const TextArea = ({ label, value, onChange, placeholder }) => (
+            <div className="mb-4">
+                <label className="block text-cyan-400 text-xs font-bold mb-1 uppercase font-tech tracking-wider">{label}</label>
+                <textarea value={value} onChange={onChange} placeholder={placeholder} rows="4" className="w-full bg-slate-900 border border-slate-700 text-white rounded p-3 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+            </div>
+        );
+
+        const TagSelector = ({ label, options, selectedString, onChange }) => {
+            const selected = selectedString ? selectedString.split(', ') : [];
+            const toggle = (opt) => {
+                let newSelected = selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt];
+                onChange(newSelected.join(', '));
+            };
+            return (
+                <div className="mb-4">
+                    <label className="block text-cyan-400 text-xs font-bold mb-2 uppercase font-tech">{label}</label>
+                    <div className="flex flex-wrap gap-2">
+                        {options.map(opt => (
+                            <button key={opt} onClick={() => toggle(opt)} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${selected.includes(opt) ? 'bg-cyan-600 text-white shadow-lg scale-105' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{opt}</button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const SpikeBlockSelector = ({ label, selectedBlocks, onChange }) => {
+            const selected = selectedBlocks || [];
+            const toggle = (blockId) => {
+                let newSelected = selected.includes(blockId) ? selected.filter(b => b !== blockId) : [...selected, blockId];
+                onChange(newSelected);
+            };
+            return (
+                <div className="mb-4">
+                    <label className="block text-cyan-400 text-xs font-bold mb-2 uppercase font-tech">{label}</label>
+                    <div className="flex flex-wrap gap-2">
+                        {SPIKE_BLOCKS.map(block => (
+                            <button key={block.id} onClick={() => toggle(block.id)} 
+                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-bold text-black transition-all transform ${block.color} ${selected.includes(block.id) ? 'ring-4 ring-white ring-opacity-50 scale-105 shadow-lg' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}>
+                                <LucideIcon name={block.icon} className="w-4 h-4" />
+                                <span>{block.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const PhotoInput = ({ label, currentImage, onUpload }) => (
+            <div className="mb-4">
+                <label className="block text-cyan-400 text-xs font-bold mb-1 uppercase font-tech">{label}</label>
+                <div className="border-2 border-dashed border-slate-600 rounded-lg text-center cursor-pointer hover:border-cyan-500 relative min-h-[140px] flex items-center justify-center bg-slate-900/50 overflow-hidden group transition-colors">
+                    <input type="file" accept="image/*" onChange={onUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                    {currentImage ? 
+                        <div className="relative w-full h-full p-2">
+                            <img src={currentImage} className="w-full h-full object-contain max-h-[200px]" />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white font-bold text-xs">Trocar Foto</div>
+                        </div> : 
+                        <div className="text-slate-400">
+                            <LucideIcon name="camera" className="mx-auto mb-2 w-8 h-8 opacity-50" />
+                            <p className="text-xs uppercase font-bold">Toque para fotografar</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        );
+
+        const StarRating = ({ rating, setRating, readOnly = false }) => {
+            return (
+                <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <button key={star} onClick={() => !readOnly && setRating(star)} className={`focus:outline-none transition-transform ${!readOnly ? 'hover:scale-110 active:scale-95' : ''}`} style={{ cursor: readOnly ? 'default' : 'pointer' }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={star <= rating ? "#FACC15" : "none"} stroke={star <= rating ? "#EAB308" : "#94a3b8"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                        </button>
+                    ))}
+                </div>
+            );
+        };
+
+        // --- APP LOGIC ---
+        const App = () => {
+            const [user, setUser] = React.useState(null);
+            const [view, setView] = React.useState('intro'); // Inicia na INTRO
+            const [missionCode, setMissionCode] = React.useState('');
+            const [loading, setLoading] = React.useState(false);
+            const [error, setError] = React.useState('');
+            const [genPdf, setGenPdf] = React.useState(false);
+            const [teacherPass, setTeacherPass] = React.useState('');
+            const [allMissions, setAllMissions] = React.useState([]);
+            const [filterSede, setFilterSede] = React.useState('ALL'); 
+            
+            // Estado Unificado para Nova Missão (Tripulação)
+            const [newClass, setNewClass] = React.useState({ 
+                grade: '', number: '', shift: '', campus: '', 
+                projectTitle: '', builder: '', programmer: '', controller: '' 
+            });
+
+            const [missionData, setMissionData] = React.useState({
+                code: '', level: 'senior', startedAt: null, logoUrl: null,
+                team: { classInfo: '', builder: '', programmer: '', controller: '', campus: '' },
+                projectTitle: '',
+                meeting1: { date: '', worldConnection: '', resources: '', spikeBlocks: [], photo: null, codePhoto: null },
+                meeting2: { date: '', memoryCheck: false, constructionChallenges: '', missionProgramming: '', testStatus: '', spikeBlocks: [], photo: null, codePhoto: null },
+                meeting3: { date: '', improvementType: '', resources: '', presentationFeeling: '', lessonsLearned: '', photo: null, teamPhoto: null },
+                evaluation: { status: '', stars: 0, obs: '' },
+                currentStep: 1 
+            });
+
+            React.useEffect(() => {
+                const initAuth = async () => { try { await auth.signInAnonymously(); } catch (err) {} };
+                initAuth();
+                return auth.onAuthStateChanged(u => setUser(u));
+            }, []);
+
+            React.useEffect(() => { window.scrollTo(0, 0); }, [view]);
+
+            const getRef = (code) => {
+                if (!code) throw new Error("Código inválido");
+                return db.collection('artifacts').doc(appId).collection('public').doc('data').collection('missions').doc(code.toUpperCase());
+            };
+
+            const compressImage = (file) => new Promise(res => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const cvs = document.createElement('canvas');
+                        const scale = 800/img.width; cvs.width = 800; cvs.height = img.height*scale;
+                        cvs.getContext('2d').drawImage(img,0,0,cvs.width,cvs.height);
+                        res(cvs.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            const createMission = async () => {
+                if (!user) return;
+                const { grade, number, shift, campus, projectTitle, builder, programmer, controller } = newClass;
+                if (!grade || !number || !shift || !campus) return setError("Preencha os dados da turma.");
+                // Opcional: Validar nomes da equipe se desejar
+                
+                setLoading(true);
+                const code = Array(6).fill(0).map(()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
+                const level = (grade === '2º' || grade === '3º') ? 'junior' : 'senior';
+                
+                const initial = { 
+                    code, level, startedAt: new Date().toISOString(), logoUrl: null,
+                    team: { 
+                        classInfo: `${grade} ${number}-${shift} (${campus})`, 
+                        builder: builder || '', programmer: programmer || '', controller: controller || '', 
+                        campus 
+                    },
+                    projectTitle: projectTitle || '',
+                    meeting1: { date: '', worldConnection: '', resources: '', spikeBlocks: [], photo: null, codePhoto: null },
+                    meeting2: { date: '', memoryCheck: false, constructionChallenges: '', missionProgramming: '', testStatus: '', spikeBlocks: [], photo: null, codePhoto: null },
+                    meeting3: { date: '', improvementType: '', resources: '', presentationFeeling: '', lessonsLearned: '', photo: null, teamPhoto: null },
+                    evaluation: { status: '', stars: 0, obs: '' },
+                    currentStep: 1 
+                };
+                try {
+                    await getRef(code).set(initial);
+                    setMissionData(initial); setMissionCode(code); setView('dashboard'); 
+                } catch (e) { setError("Erro ao criar missão."); }
+                setLoading(false);
+            };
+
+            const loadMission = async (c, targetView = 'dashboard') => {
+                if (!user || !c) return;
+                const code = c.toUpperCase().trim();
+                if (code.length < 6) return setError("Código muito curto.");
+                setLoading(true); setError("");
+                try {
+                    const snap = await getRef(code).get();
+                    if (snap.exists) { setMissionData({...missionData, ...snap.data()}); setMissionCode(code); setView(targetView); } 
+                    else { setError("Missão não encontrada"); }
+                } catch(e) { setError("Erro ao carregar"); }
+                setLoading(false);
+            };
+
+            const saveProgress = async () => {
+                if (!missionData.code) return;
+                setLoading(true);
+                const today = new Date().toLocaleDateString('pt-BR');
+                const updateData = { ...missionData };
+                // Atualiza datas automaticamente se necessário
+                if (missionData.currentStep >= 1 && !missionData.meeting1.date) updateData.meeting1.date = today;
+                if (missionData.currentStep >= 2 && !missionData.meeting2.date) updateData.meeting2.date = today;
+                if (missionData.currentStep >= 3 && !missionData.meeting3.date) updateData.meeting3.date = today;
+                setMissionData(updateData);
+                try { await getRef(missionData.code).set(updateData, {merge:true}); alert("Salvo com sucesso!"); }
+                catch (e) { alert("Erro ao salvar."); }
+                setLoading(false);
+            };
+
+            const handlePhoto = async (step, field, e) => {
+                if (e.target.files[0]) {
+                    const img = await compressImage(e.target.files[0]);
+                    setMissionData(prev => ({...prev, [step]: {...prev[step], [field]: img}}));
+                }
+            };
+
+            const loadAllMissions = async () => {
+                setLoading(true);
+                try {
+                    const snap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('missions').orderBy('startedAt', 'desc').limit(200).get();
+                    setAllMissions(snap.docs.map(d => d.data()));
+                } catch (e) {}
+                setLoading(false);
+            };
+
+            const updateEvaluation = async (code, field, value) => {
+                try {
+                    await getRef(code).set({ evaluation: { [field]: value } }, { merge: true });
+                    setAllMissions(prev => prev.map(m => m.code === code ? { ...m, evaluation: { ...(m.evaluation || {}), [field]: value } } : m));
+                    if (missionData.code === code) setMissionData(prev => ({...prev, evaluation: { ...prev.evaluation, [field]: value }}));
+                } catch (e) {}
+            };
+
+            const deleteMission = async (code) => {
+                if (window.confirm(`Excluir missão ${code}?`)) {
+                     try {
+                        await getRef(code).delete();
+                        setAllMissions(prev => prev.filter(m => m.code !== code));
+                        if (missionData.code === code) setMissionData({...missionData, code: ''});
+                     } catch (e) {}
+                }
+            };
+
+            const downloadPDF = () => {
+                setGenPdf(true);
+                const element = document.getElementById('report-page');
+                html2pdf().set({ margin: 0, filename: `Relatorio_${missionData.code}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(element).save().then(() => setGenPdf(false));
+            };
+
+            const filteredMissions = allMissions.filter(m => filterSede === 'ALL' || (m.team && m.team.campus === filterSede));
+
+            // --- VIEW: INTRODUÇÃO (NOVA) ---
+            if (view === 'intro') {
+                return (
+                     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 animate-fadeIn">
+                        <div className="max-w-md w-full text-center space-y-6">
+                            <div className="relative w-48 h-48 mx-auto mb-4">
+                                <div className="absolute inset-0 bg-cyan-500 rounded-full blur-xl opacity-20 animate-pulse"></div>
+                                <img src="aribot.png" className="relative z-10 w-full h-full object-contain animate-pop" onError={(e)=>{e.target.style.display='none'}} />
+                            </div>
+                            <h1 className="text-3xl font-tech font-bold text-white uppercase tracking-wider">Olá, Tripulação!</h1>
+                            <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700 backdrop-blur-sm">
+                                <p className="text-slate-300 text-lg mb-2">Eu sou o <span className="text-cyan-400 font-bold">Aribot</span>.</p>
+                                <p className="text-slate-400 text-sm">Seu assistente de bordo nesta jornada robótica.</p>
+                            </div>
+                            <Button onClick={() => setView('landing')} size="lg" className="w-full shadow-cyan-500/50" iconName="rocket">Entrar na Nave</Button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VIEW: RELATÓRIO PDF ---
+            if (view === 'report') {
+                return (
+                    <div className="min-h-screen bg-slate-200 py-8 text-black overflow-auto">
+                        <div className="fixed top-4 right-4 flex flex-col gap-2 z-50 no-print">
+                            <Button onClick={() => setView('dashboard')} variant="secondary" iconName="arrow-left">Voltar</Button>
+                            <Button onClick={downloadPDF} variant="success" iconName="download" disabled={genPdf}>{genPdf ? 'Gerando...' : 'Baixar PDF'}</Button>
+                        </div>
+                        <div id="report-page" className="a4-paper flex flex-col justify-between">
+                            <div className="relative flex justify-center items-center mb-2 border-b-2 border-slate-800 pb-2 avoid-break">
+                                <div className="absolute left-0 top-0 h-14 w-24 flex items-center justify-start"><img src="logo.png" className="max-h-full max-w-full object-contain" onError={(e)=>{e.target.style.display='none'}} /></div>
+                                <div className="text-center"><h1 className="text-2xl font-black uppercase text-slate-800 leading-none">Relatório</h1><h2 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Diário de Bordo</h2><p className="font-mono text-lg font-bold text-slate-900 mt-1">{missionData.code}</p></div>
+                                <div className="absolute right-0 top-0 text-right"><span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded uppercase font-bold">{missionData.level}</span></div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-300 p-2 rounded mb-2 text-xs avoid-break">
+                                <div className="grid grid-cols-2 gap-4 mb-1"><div><span className="font-bold uppercase text-[9px] text-slate-500 block">Projeto</span>{missionData.projectTitle || "Sem nome"}</div><div><span className="font-bold uppercase text-[9px] text-slate-500 block">Turma</span>{missionData.team.classInfo || "-"}</div></div>
+                                <div className="grid grid-cols-3 gap-1 border-t border-slate-200 pt-1"><div><span className="font-bold uppercase text-[9px] text-slate-500 block">Construtor</span>{missionData.team.builder}</div><div><span className="font-bold uppercase text-[9px] text-slate-500 block">Programador</span>{missionData.team.programmer}</div><div><span className="font-bold uppercase text-[9px] text-slate-500 block">Controlador</span>{missionData.team.controller}</div></div>
+                            </div>
+                            <div className="flex flex-col gap-1 flex-grow h-full">
+                                <div className="border border-slate-300 rounded text-xs avoid-break flex-1 flex flex-col">
+                                    <div className="bg-slate-800 text-white p-1 px-2 font-bold uppercase flex justify-between text-[11px]"><span>Encontro 01: A Descoberta</span><span>{missionData.meeting1.date}</span></div>
+                                    <div className="p-2 grid grid-cols-4 gap-2 flex-grow">
+                                        <div className="col-span-2 space-y-1 flex flex-col justify-center">
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Conexão Mundo</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting1.worldConnection || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Recursos</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting1.resources || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Blocos Utilizados</strong><div className="flex flex-wrap gap-0.5 mt-0.5">{(missionData.meeting1.spikeBlocks || []).map(bid => { const b = SPIKE_BLOCKS.find(x=>x.id===bid); return b ? <span key={bid} className={`px-1.5 py-0.5 rounded text-[8px] text-black font-bold ${b.color}`}>{b.label}</span> : null; })}</div></div>
+                                        </div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative group">{missionData.meeting1.photo ? <img src={missionData.meeting1.photo} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Miniprotótipo</span>}</div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative group">{missionData.meeting1.codePhoto ? <img src={missionData.meeting1.codePhoto} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Código</span>}</div>
+                                    </div>
+                                </div>
+                                <div className="border border-slate-300 rounded text-xs avoid-break flex-1 flex flex-col">
+                                    <div className="bg-slate-800 text-white p-1 px-2 font-bold uppercase flex justify-between text-[11px]"><span>Encontro 02: A Missão</span><span>{missionData.meeting2.date}</span></div>
+                                    <div className="p-2 grid grid-cols-4 gap-2 flex-grow">
+                                        <div className="col-span-2 space-y-1 flex flex-col justify-center">
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Desafios</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting2.constructionChallenges || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Status Testes</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting2.testStatus || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Blocos Utilizados</strong><div className="flex flex-wrap gap-0.5 mt-0.5">{(missionData.meeting2.spikeBlocks || []).map(bid => { const b = SPIKE_BLOCKS.find(x=>x.id===bid); return b ? <span key={bid} className={`px-1.5 py-0.5 rounded text-[8px] text-black font-bold ${b.color}`}>{b.label}</span> : null; })}</div></div>
+                                        </div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative">{missionData.meeting2.photo ? <img src={missionData.meeting2.photo} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Construção</span>}</div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative">{missionData.meeting2.codePhoto ? <img src={missionData.meeting2.codePhoto} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Código</span>}</div>
+                                    </div>
+                                </div>
+                                <div className="border border-slate-300 rounded text-xs avoid-break flex-1 flex flex-col">
+                                    <div className="bg-slate-800 text-white p-1 px-2 font-bold uppercase flex justify-between text-[11px]"><span>Encontro 03: A Evolução</span><span>{missionData.meeting3.date}</span></div>
+                                    <div className="p-2 grid grid-cols-4 gap-2 flex-grow">
+                                        <div className="col-span-2 space-y-1 flex flex-col justify-center">
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Tipo Melhoria</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting3.improvementType || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Recursos Usados</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight">{missionData.meeting3.resources || "-"}</p></div>
+                                            <div><strong className="block text-slate-500 text-[9px] uppercase">Lições Aprendidas</strong><p className="bg-slate-50 p-1 border rounded text-[10px] leading-tight min-h-[20px]">{missionData.meeting3.lessonsLearned || "-"}</p></div>
+                                        </div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative">{missionData.meeting3.photo ? <img src={missionData.meeting3.photo} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Melhoria</span>}</div>
+                                        <div className="col-span-1 border border-slate-200 rounded overflow-hidden flex justify-center bg-slate-50 items-center h-full relative">{missionData.meeting3.teamPhoto ? <img src={missionData.meeting3.teamPhoto} className="max-h-full w-full object-contain" /> : <span className="text-[9px] text-slate-300">Equipe</span>}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-2 border-2 border-slate-800 rounded-lg p-2 avoid-break">
+                                <div className="flex justify-between items-center mb-1 border-b border-slate-300 pb-1">
+                                    <div className="flex gap-4">{missionData.evaluation?.status === 'Completa' ? (<div className="inline-block border-2 border-green-600 text-green-700 font-black px-4 py-1 rounded-lg uppercase tracking-widest transform -rotate-2 text-sm opacity-90 mix-blend-multiply">MISSÃO CUMPRIDA</div>) : (<div className="flex items-center gap-2 py-1">{missionData.evaluation?.status === 'Incompleta' ? (<span className="text-red-600 font-bold uppercase text-[10px] tracking-widest border border-red-600 px-2 py-0.5 rounded">Missão Incompleta</span>) : <span className="text-slate-400 italic text-[10px]">Aguardando Avaliação</span>}</div>)}</div>
+                                    <div><span className="text-[10px] uppercase font-bold mr-2 align-middle">Desempenho:</span><div className="inline-block align-middle scale-75 origin-right"><StarRating rating={missionData.evaluation?.stars || 0} readOnly={true} /></div></div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-1"><div className="text-[9px] font-bold uppercase text-slate-400">Observações do Professor:</div><span className="print-line h-4"></span><span className="print-line h-4"></span></div>
+                            </div>
+                            <div className="mt-2 text-center avoid-break"><div className="inline-block w-48 border-t border-black pt-1"><p className="text-[9px] font-bold uppercase">Assinatura do Professor(a)</p></div></div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VIEW: TEACHER PANEL ---
+            if (view === 'teacher-panel') {
+                return (
+                    <div className="min-h-screen p-4 bg-slate-900 text-white">
+                        <div className="max-w-5xl mx-auto">
+                            <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-tech font-bold text-cyan-400">Painel do Professor</h2><Button onClick={() => setView('landing')} variant="secondary" iconName="x">Fechar</Button></div>
+                            {!allMissions.length ? (
+                                <div className="text-center py-20"><p className="mb-4">Digite a senha para acessar</p><input type="password" value={teacherPass} onChange={e => setTeacherPass(e.target.value)} className="bg-slate-800 border border-slate-600 p-2 rounded text-center text-xl tracking-widest w-48" placeholder="Senha" /><div className="mt-4"><Button onClick={() => teacherPass === TEACHER_PASSWORD ? loadAllMissions() : alert('Senha incorreta')} variant="primary">Entrar</Button></div></div>
+                            ) : (
+                                <div>
+                                    <div className="flex gap-2 mb-4"><button onClick={() => setFilterSede('ALL')} className={`px-4 py-2 rounded font-bold ${filterSede==='ALL'?'bg-cyan-600':'bg-slate-700'}`}>TODOS</button><button onClick={() => setFilterSede('WS')} className={`px-4 py-2 rounded font-bold ${filterSede==='WS'?'bg-cyan-600':'bg-slate-700'}`}>Sede WS</button><button onClick={() => setFilterSede('AD')} className={`px-4 py-2 rounded font-bold ${filterSede==='AD'?'bg-cyan-600':'bg-slate-700'}`}>Sede AD</button></div>
+                                    <div className="bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-900 text-cyan-400 uppercase font-tech"><tr><th className="p-3">Código</th><th className="p-3">Turma</th><th className="p-3">Data</th><th className="p-3">Avaliação</th><th className="p-3 text-center">Ações</th></tr></thead>
+                                            <tbody className="divide-y divide-slate-700">
+                                                {filteredMissions.map(m => (
+                                                    <tr key={m.code} className="hover:bg-slate-700/50">
+                                                        <td className="p-3 font-mono font-bold text-cyan-400 cursor-pointer hover:text-cyan-200 hover:underline transition-colors" onClick={() => loadMission(m.code, 'report')} title="Clique para ver o relatório">{m.code}</td>
+                                                        <td className="p-3">{m.team?.classInfo}</td>
+                                                        <td className="p-3 opacity-70">{new Date(m.startedAt).toLocaleDateString('pt-BR')}</td>
+                                                        <td className="p-3 flex items-center gap-4"><div className="flex gap-1"><button onClick={()=>updateEvaluation(m.code,'status','Completa')} className={`w-8 h-8 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Completa'?'bg-green-600 border-green-400 scale-110':'border-slate-500 hover:border-green-400'}`} title="Completa">✓</button><button onClick={()=>updateEvaluation(m.code,'status','Incompleta')} className={`w-8 h-8 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Incompleta'?'bg-red-600 border-red-400 scale-110':'border-slate-500 hover:border-red-400'}`} title="Incompleta">✕</button></div><div className="origin-left"><StarRating rating={m.evaluation?.stars || 0} setRating={(r)=>updateEvaluation(m.code,'stars',r)} /></div></td>
+                                                        <td className="p-3 text-center"><button onClick={() => deleteMission(m.code)} className="text-red-400 hover:text-red-300 hover:bg-red-900/30 p-2 rounded transition-colors" title="Excluir Missão"><LucideIcon name="trash-2" className="w-5 h-5" /></button></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VIEW: LANDING (AGORA É PÁGINA DA TRIPULAÇÃO) ---
+            if (view === 'landing') {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-slate-900">
+                         <div className="absolute top-4 right-4 z-20"><button onClick={() => setView('teacher-panel')} className="text-slate-600 hover:text-cyan-500 text-xs uppercase font-bold tracking-widest flex items-center gap-1"><LucideIcon name="lock" className="w-3 h-3" /> Área Restrita</button></div>
+                        <div className="max-w-2xl w-full text-center space-y-6 relative z-10">
+                            <div className="flex flex-col items-center">
+                                <div className="h-32 mb-4"><img src="logo.png" className="h-full object-contain drop-shadow-lg" onError={(e)=>{e.target.style.display='none'}} /></div>
+                                <h1 className="text-4xl font-black text-white uppercase tracking-tight font-tech">Robótica <span className="text-cyan-400">Ari de Sá</span></h1>
+                                <p className="text-slate-400 text-sm tracking-widest uppercase">Diário de Bordo Digital</p>
+                            </div>
+
+                            <Card className="text-left space-y-6 border-t-4 border-t-cyan-500">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white uppercase font-tech mb-4 flex items-center gap-2"><LucideIcon name="users" className="text-cyan-400"/> Nova Missão: Tripulação</h2>
+                                    
+                                    <div className="space-y-4">
+                                        {/* Bloco 1: Turma */}
+                                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                                            <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Dados da Turma</label>
+                                            <div className="grid grid-cols-4 gap-2 mb-3">
+                                                {['2º','3º','4º','5º'].map(g => (<button key={g} onClick={() => setNewClass({...newClass, grade: g})} className={`py-2 rounded font-bold font-tech text-lg transition-all ${newClass.grade===g ? 'bg-cyan-600 text-white ring-2 ring-cyan-300' : 'bg-slate-700 text-slate-400'}`}>{g}</button>))}
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <input type="tel" maxLength="2" placeholder="Turma (Nº)" className="bg-slate-800 border border-slate-600 rounded p-2 text-center text-white font-bold" value={newClass.number} onChange={e => setNewClass({...newClass, number: e.target.value})} />
+                                                <div className="grid grid-cols-2 gap-1">{['M','T'].map(t => (<button key={t} onClick={() => setNewClass({...newClass, shift: t})} className={`rounded font-bold text-xs ${newClass.shift===t ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-400'}`}>{t}</button>))}</div>
+                                                <div className="grid grid-cols-2 gap-1">{['WS','AD'].map(s => (<button key={s} onClick={() => setNewClass({...newClass, campus: s})} className={`rounded font-bold text-xs ${newClass.campus===s ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400'}`}>{s}</button>))}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Bloco 2: Equipe */}
+                                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 space-y-3">
+                                            <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Dados da Equipe</label>
+                                            <input value={newClass.projectTitle} onChange={e=>setNewClass({...newClass, projectTitle: e.target.value})} className="w-full bg-slate-800 border border-slate-600 p-2 rounded text-white" placeholder="Nome do Projeto / Robô" />
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                <input value={newClass.builder} onChange={e=>setNewClass({...newClass, builder: e.target.value})} className="bg-slate-800 border border-slate-600 p-2 rounded text-white text-sm" placeholder="Construtor" />
+                                                <input value={newClass.programmer} onChange={e=>setNewClass({...newClass, programmer: e.target.value})} className="bg-slate-800 border border-slate-600 p-2 rounded text-white text-sm" placeholder="Programador" />
+                                                <input value={newClass.controller} onChange={e=>setNewClass({...newClass, controller: e.target.value})} className="bg-slate-800 border border-slate-600 p-2 rounded text-white text-sm" placeholder="Controlador" />
+                                            </div>
+                                        </div>
+
+                                        <Button onClick={createMission} className="w-full" iconName="rocket" size="lg" disabled={loading || !user}>{loading ? 'Criando...' : 'INICIAR MISSÃO'}</Button>
+                                    </div>
+                                </div>
+                                
+                                <div className="border-t border-slate-700 pt-6">
+                                    <h2 className="text-sm font-bold text-slate-500 uppercase mb-2">Já tem um código?</h2>
+                                    <div className="flex gap-2"><input value={missionCode} onChange={e=>setMissionCode(e.target.value.toUpperCase())} className="flex-1 bg-slate-900 border border-slate-600 text-white rounded px-4 py-3 uppercase text-center font-mono tracking-widest text-lg" placeholder="CÓDIGO" /><Button onClick={()=>loadMission(missionCode)} variant="secondary" iconName="chevron-right">Continuar</Button></div>
+                                </div>
+                            </Card>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VIEW: DASHBOARD (SEM ABA TRIPULAÇÃO) ---
+            return (
+                <div className="min-h-screen p-4 pb-24">
+                    <header className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 no-print sticky top-0 bg-[#0f172a] z-40 pt-2 shadow-lg">
+                        <div className="flex items-center gap-3"><div><h1 className="font-bold text-white text-lg leading-none font-tech uppercase">Diário</h1><span className="text-xs text-cyan-500 font-mono font-bold tracking-wider">{missionData.code}</span></div></div>
+                        <div className="flex gap-2"><Button variant="outline" onClick={()=>setView('landing')} iconName="log-out" size="sm">Sair</Button><Button variant="success" onClick={saveProgress} iconName="save" disabled={loading} size="sm">Salvar</Button></div>
+                    </header>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                        <div className="space-y-2 no-print md:col-span-1">
+                             {/* Menu Lateral Atualizado: Remove "Tripulação" e mantém apenas Encontros */}
+                            {[{id:1, label:'Encontro 01', icon:'cpu'}, {id:2, label:'Encontro 02', icon:'code'}, {id:3, label:'Encontro 03', icon:'rocket'}].map(item => (
+                                <button key={item.id} onClick={()=>setMissionData({...missionData, currentStep:item.id})} className={`w-full flex items-center p-3 rounded-lg transition-all ${missionData.currentStep===item.id ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500 shadow-lg shadow-cyan-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                    <LucideIcon name={item.icon} className="w-5 h-5 mr-3" /><span className="font-bold text-sm uppercase">{item.label}</span>
+                                </button>
+                            ))}
+                             <div className="mt-8 pt-4 border-t border-slate-700"><button onClick={()=>setView('report')} className="w-full flex items-center p-3 rounded-lg bg-slate-800 text-yellow-400 border border-yellow-400/30 hover:bg-slate-700 transition-colors"><LucideIcon name="file-text" className="w-5 h-5 mr-3" /><span className="font-bold text-sm uppercase">Ver Relatório</span></button></div>
+                        </div>
+                        <div className="md:col-span-3">
+                            <Card className="min-h-[500px]">
+                                {missionData.currentStep === 1 && (
+                                    <div className="animate-fadeIn">
+                                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center border-b border-slate-700 pb-2 font-tech"><LucideIcon name="cpu" className="mr-3 text-cyan-400 w-6 h-6" /> Encontro 01: A Descoberta</h2>
+                                        <div className="space-y-6">
+                                            <TagSelector label="Conexão com o Mundo" options={CONECT3_DATA.worldConnection} selectedString={missionData.meeting1.worldConnection} onChange={val=>setMissionData({...missionData, meeting1:{...missionData.meeting1, worldConnection:val}})} />
+                                            <TagSelector label="Recursos Explorados" options={CONECT3_DATA.resources} selectedString={missionData.meeting1.resources} onChange={val=>setMissionData({...missionData, meeting1:{...missionData.meeting1, resources:val}})} />
+                                            <SpikeBlockSelector label="Blocos de Código Utilizados" selectedBlocks={missionData.meeting1.spikeBlocks} onChange={val=>setMissionData({...missionData, meeting1:{...missionData.meeting1, spikeBlocks:val}})} />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-700">
+                                            <PhotoInput label="Foto do Miniprotótipo" currentImage={missionData.meeting1.photo} onUpload={(e)=>handlePhoto('meeting1','photo',e)} />
+                                            <PhotoInput label="Foto do Código (Opcional)" currentImage={missionData.meeting1.codePhoto} onUpload={(e)=>handlePhoto('meeting1','codePhoto',e)} />
+                                        </div>
+                                    </div>
+                                )}
+                                {missionData.currentStep === 2 && (
+                                    <div className="animate-fadeIn">
+                                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center border-b border-slate-700 pb-2 font-tech"><LucideIcon name="code" className="mr-3 text-cyan-400 w-6 h-6" /> Encontro 02: A Missão</h2>
+                                        <div className="mb-6 p-4 bg-cyan-900/30 border border-cyan-700 rounded-lg flex items-center justify-between">
+                                            <span className="font-bold text-cyan-200 text-sm">MEMÓRIA CONECTADA: Relembramos a aula passada?</span>
+                                            <button onClick={()=>setMissionData(p=>({...p, meeting2:{...p.meeting2, memoryCheck:!p.meeting2.memoryCheck}}))} className={`w-8 h-8 rounded border flex items-center justify-center transition-all ${missionData.meeting2.memoryCheck ? 'bg-green-500 border-green-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-500'}`}><LucideIcon name="check" className="w-5 h-5" /></button>
+                                        </div>
+                                        <div className="space-y-6">
+                                            <TagSelector label="Desafios da Construção" options={CONECT3_DATA.constructionChallenges} selectedString={missionData.meeting2.constructionChallenges} onChange={val=>setMissionData({...missionData, meeting2:{...missionData.meeting2, constructionChallenges:val}})} />
+                                            <TagSelector label="Programação da Missão" options={CONECT3_DATA.missionProgramming} selectedString={missionData.meeting2.missionProgramming} onChange={val=>setMissionData({...missionData, meeting2:{...missionData.meeting2, missionProgramming:val}})} />
+                                            <SpikeBlockSelector label="Blocos de Código Utilizados" selectedBlocks={missionData.meeting2.spikeBlocks} onChange={val=>setMissionData({...missionData, meeting2:{...missionData.meeting2, spikeBlocks:val}})} />
+                                            <TagSelector label="Status dos Testes" options={CONECT3_DATA.testStatus} selectedString={missionData.meeting2.testStatus} onChange={val=>setMissionData({...missionData, meeting2:{...missionData.meeting2, testStatus:val}})} />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-700"><PhotoInput label="Foto da Construção" currentImage={missionData.meeting2.photo} onUpload={(e)=>handlePhoto('meeting2','photo',e)} /><PhotoInput label="Foto do Código" currentImage={missionData.meeting2.codePhoto} onUpload={(e)=>handlePhoto('meeting2','codePhoto',e)} /></div>
+                                    </div>
+                                )}
+                                {missionData.currentStep === 3 && (
+                                    <div className="animate-fadeIn">
+                                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center border-b border-slate-700 pb-2 font-tech"><LucideIcon name="rocket" className="mr-3 text-cyan-400 w-6 h-6" /> Encontro 03: A Evolução</h2>
+                                        <div className="space-y-6">
+                                            <TagSelector label="Tipo de Melhoria" options={CONECT3_DATA.improvementType} selectedString={missionData.meeting3.improvementType} onChange={val=>setMissionData({...missionData, meeting3:{...missionData.meeting3, improvementType:val}})} />
+                                            <TagSelector label="Recursos Utilizados na Melhoria" options={CONECT3_DATA.resources} selectedString={missionData.meeting3.resources} onChange={val=>setMissionData({...missionData, meeting3:{...missionData.meeting3, resources:val}})} />
+                                            <TagSelector label="Sentimento na Apresentação" options={CONECT3_DATA.presentationFeeling} selectedString={missionData.meeting3.presentationFeeling} onChange={val=>setMissionData({...missionData, meeting3:{...missionData.meeting3, presentationFeeling:val}})} />
+                                            <TextArea label="Lições Aprendidas (Conclusão Final)" value={missionData.meeting3.lessonsLearned} onChange={e=>setMissionData({...missionData, meeting3:{...missionData.meeting3, lessonsLearned:e.target.value}})} placeholder="O que sua equipe aprendeu hoje?" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-700"><PhotoInput label="Foto da Melhoria" currentImage={missionData.meeting3.photo} onUpload={(e)=>handlePhoto('meeting3','photo',e)} /><PhotoInput label="Equipe Final" currentImage={missionData.meeting3.teamPhoto} onUpload={(e)=>handlePhoto('meeting3','teamPhoto',e)} /></div>
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
