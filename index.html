@@ -233,16 +233,19 @@
         // --- APP LOGIC ---
         const App = () => {
             const [user, setUser] = React.useState(null);
-            const [view, setView] = React.useState('intro'); // Inicia na INTRO
+            const [view, setView] = React.useState('intro'); 
             const [missionCode, setMissionCode] = React.useState('');
             const [loading, setLoading] = React.useState(false);
             const [error, setError] = React.useState('');
             const [genPdf, setGenPdf] = React.useState(false);
             const [teacherPass, setTeacherPass] = React.useState('');
             const [allMissions, setAllMissions] = React.useState([]);
-            const [filterSede, setFilterSede] = React.useState('ALL'); 
             
-            // Estado Unificado para Nova Missão (Tripulação)
+            // Filtros e Seleção
+            const [filterSede, setFilterSede] = React.useState('ALL'); 
+            const [filterGrade, setFilterGrade] = React.useState('ALL');
+            const [selectedMissions, setSelectedMissions] = React.useState([]);
+            
             const [newClass, setNewClass] = React.useState({ 
                 grade: '', number: '', shift: '', campus: '', 
                 projectTitle: '', builder: '', programmer: '', controller: '' 
@@ -291,7 +294,6 @@
                 if (!user) return;
                 const { grade, number, shift, campus, projectTitle, builder, programmer, controller } = newClass;
                 if (!grade || !number || !shift || !campus) return setError("Preencha os dados da turma.");
-                // Opcional: Validar nomes da equipe se desejar
                 
                 setLoading(true);
                 const code = Array(6).fill(0).map(()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
@@ -336,7 +338,6 @@
                 setLoading(true);
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updateData = { ...missionData };
-                // Atualiza datas automaticamente se necessário
                 if (missionData.currentStep >= 1 && !missionData.meeting1.date) updateData.meeting1.date = today;
                 if (missionData.currentStep >= 2 && !missionData.meeting2.date) updateData.meeting2.date = today;
                 if (missionData.currentStep >= 3 && !missionData.meeting3.date) updateData.meeting3.date = today;
@@ -379,6 +380,28 @@
                      } catch (e) {}
                 }
             };
+            
+            const deleteSelectedMissions = async () => {
+                if (selectedMissions.length === 0) return;
+                if (!window.confirm(`Tem certeza que deseja excluir ${selectedMissions.length} missões?`)) return;
+                setLoading(true);
+                for (const code of selectedMissions) {
+                    try { await getRef(code).delete(); } catch(e){}
+                }
+                setAllMissions(prev => prev.filter(m => !selectedMissions.includes(m.code)));
+                setSelectedMissions([]);
+                setLoading(false);
+            };
+
+            const toggleSelectAll = (checked) => {
+                if (checked) setSelectedMissions(filteredMissions.map(m => m.code));
+                else setSelectedMissions([]);
+            };
+
+            const toggleSelectMission = (code) => {
+                if (selectedMissions.includes(code)) setSelectedMissions(selectedMissions.filter(c => c !== code));
+                else setSelectedMissions([...selectedMissions, code]);
+            };
 
             const downloadPDF = () => {
                 setGenPdf(true);
@@ -386,9 +409,13 @@
                 html2pdf().set({ margin: 0, filename: `Relatorio_${missionData.code}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(element).save().then(() => setGenPdf(false));
             };
 
-            const filteredMissions = allMissions.filter(m => filterSede === 'ALL' || (m.team && m.team.campus === filterSede));
+            const filteredMissions = allMissions.filter(m => {
+                const matchSede = filterSede === 'ALL' || (m.team && m.team.campus === filterSede);
+                const matchGrade = filterGrade === 'ALL' || (m.team && m.team.classInfo && m.team.classInfo.startsWith(filterGrade));
+                return matchSede && matchGrade;
+            });
 
-            // --- VIEW: INTRODUÇÃO (NOVA) ---
+            // --- VIEW: INTRODUÇÃO ---
             if (view === 'intro') {
                 return (
                      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 animate-fadeIn">
@@ -481,28 +508,71 @@
             if (view === 'teacher-panel') {
                 return (
                     <div className="min-h-screen p-4 bg-slate-900 text-white">
-                        <div className="max-w-5xl mx-auto">
+                        <div className="max-w-6xl mx-auto">
                             <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-tech font-bold text-cyan-400">Painel do Professor</h2><Button onClick={() => setView('landing')} variant="secondary" iconName="x">Fechar</Button></div>
                             {!allMissions.length ? (
                                 <div className="text-center py-20"><p className="mb-4">Digite a senha para acessar</p><input type="password" value={teacherPass} onChange={e => setTeacherPass(e.target.value)} className="bg-slate-800 border border-slate-600 p-2 rounded text-center text-xl tracking-widest w-48" placeholder="Senha" /><div className="mt-4"><Button onClick={() => teacherPass === TEACHER_PASSWORD ? loadAllMissions() : alert('Senha incorreta')} variant="primary">Entrar</Button></div></div>
                             ) : (
                                 <div>
-                                    <div className="flex gap-2 mb-4"><button onClick={() => setFilterSede('ALL')} className={`px-4 py-2 rounded font-bold ${filterSede==='ALL'?'bg-cyan-600':'bg-slate-700'}`}>TODOS</button><button onClick={() => setFilterSede('WS')} className={`px-4 py-2 rounded font-bold ${filterSede==='WS'?'bg-cyan-600':'bg-slate-700'}`}>Sede WS</button><button onClick={() => setFilterSede('AD')} className={`px-4 py-2 rounded font-bold ${filterSede==='AD'?'bg-cyan-600':'bg-slate-700'}`}>Sede AD</button></div>
+                                    <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between">
+                                        <div className="flex gap-2 items-center">
+                                             <span className="text-xs font-bold text-slate-500 uppercase">Sede:</span>
+                                             <div className="flex gap-1">
+                                                 {['ALL','WS','AD'].map(s => <button key={s} onClick={() => setFilterSede(s)} className={`px-3 py-1 rounded text-xs font-bold ${filterSede===s?'bg-cyan-600':'bg-slate-700'}`}>{s === 'ALL' ? 'TODAS' : s}</button>)}
+                                             </div>
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">Série:</span>
+                                             <div className="flex gap-1">
+                                                 {['ALL','2º','3º','4º','5º'].map(g => <button key={g} onClick={() => setFilterGrade(g)} className={`px-3 py-1 rounded text-xs font-bold ${filterGrade===g?'bg-cyan-600':'bg-slate-700'}`}>{g === 'ALL' ? 'TODAS' : g}</button>)}
+                                             </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {selectedMissions.length > 0 && (
+                                        <div className="bg-red-900/30 border border-red-500/50 p-2 mb-4 rounded flex justify-between items-center px-4 animate-fadeIn">
+                                            <span className="text-sm text-red-200 font-bold">{selectedMissions.length} missões selecionadas</span>
+                                            <button onClick={deleteSelectedMissions} className="text-xs bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded font-bold uppercase transition-all flex gap-2 items-center"><LucideIcon name="trash-2" className="w-4 h-4"/> Apagar Selecionadas</button>
+                                        </div>
+                                    )}
+
                                     <div className="bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-                                        <table className="w-full text-sm text-left">
-                                            <thead className="bg-slate-900 text-cyan-400 uppercase font-tech"><tr><th className="p-3">Código</th><th className="p-3">Turma</th><th className="p-3">Data</th><th className="p-3">Avaliação</th><th className="p-3 text-center">Ações</th></tr></thead>
-                                            <tbody className="divide-y divide-slate-700">
-                                                {filteredMissions.map(m => (
-                                                    <tr key={m.code} className="hover:bg-slate-700/50">
-                                                        <td className="p-3 font-mono font-bold text-cyan-400 cursor-pointer hover:text-cyan-200 hover:underline transition-colors" onClick={() => loadMission(m.code, 'report')} title="Clique para ver o relatório">{m.code}</td>
-                                                        <td className="p-3">{m.team?.classInfo}</td>
-                                                        <td className="p-3 opacity-70">{new Date(m.startedAt).toLocaleDateString('pt-BR')}</td>
-                                                        <td className="p-3 flex items-center gap-4"><div className="flex gap-1"><button onClick={()=>updateEvaluation(m.code,'status','Completa')} className={`w-8 h-8 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Completa'?'bg-green-600 border-green-400 scale-110':'border-slate-500 hover:border-green-400'}`} title="Completa">✓</button><button onClick={()=>updateEvaluation(m.code,'status','Incompleta')} className={`w-8 h-8 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Incompleta'?'bg-red-600 border-red-400 scale-110':'border-slate-500 hover:border-red-400'}`} title="Incompleta">✕</button></div><div className="origin-left"><StarRating rating={m.evaluation?.stars || 0} setRating={(r)=>updateEvaluation(m.code,'stars',r)} /></div></td>
-                                                        <td className="p-3 text-center"><button onClick={() => deleteMission(m.code)} className="text-red-400 hover:text-red-300 hover:bg-red-900/30 p-2 rounded transition-colors" title="Excluir Missão"><LucideIcon name="trash-2" className="w-5 h-5" /></button></td>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="bg-slate-900 text-cyan-400 uppercase font-tech text-xs">
+                                                    <tr>
+                                                        <th className="p-3 text-center w-10">
+                                                            <input type="checkbox" onChange={(e) => toggleSelectAll(e.target.checked)} className="rounded bg-slate-700 border-slate-500" />
+                                                        </th>
+                                                        <th className="p-3">Código</th>
+                                                        <th className="p-3">Turma</th>
+                                                        <th className="p-3">Tripulação (Controlador)</th>
+                                                        <th className="p-3">Data</th>
+                                                        <th className="p-3">Avaliação</th>
+                                                        <th className="p-3 text-center">Ações</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-700">
+                                                    {filteredMissions.map(m => (
+                                                        <tr key={m.code} className={`hover:bg-slate-700/50 ${selectedMissions.includes(m.code) ? 'bg-cyan-900/20' : ''}`}>
+                                                            <td className="p-3 text-center">
+                                                                <input type="checkbox" checked={selectedMissions.includes(m.code)} onChange={() => toggleSelectMission(m.code)} className="rounded bg-slate-700 border-slate-500" />
+                                                            </td>
+                                                            <td className="p-3 font-mono font-bold text-cyan-400 cursor-pointer hover:text-cyan-200 hover:underline transition-colors" onClick={() => loadMission(m.code, 'report')} title="Clique para ver o relatório">{m.code}</td>
+                                                            <td className="p-3"><span className="bg-slate-700 px-2 py-1 rounded text-xs font-bold">{m.team?.classInfo.split(' ')[0]}</span> {m.team?.classInfo.substring(3)}</td>
+                                                            <td className="p-3">
+                                                                <div className="font-bold text-white text-xs mb-0.5 flex items-center gap-1"><LucideIcon name="gamepad-2" className="w-3 h-3 text-emerald-400"/> {m.team?.controller || "-"}</div>
+                                                                <div className="text-[10px] text-slate-400 truncate max-w-[150px]">{m.team?.builder} • {m.team?.programmer}</div>
+                                                            </td>
+                                                            <td className="p-3 opacity-70 text-xs">{new Date(m.startedAt).toLocaleDateString('pt-BR')}</td>
+                                                            <td className="p-3 flex items-center gap-2"><div className="flex gap-1"><button onClick={()=>updateEvaluation(m.code,'status','Completa')} className={`w-6 h-6 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Completa'?'bg-green-600 border-green-400':'border-slate-500 hover:border-green-400'}`} title="Completa">✓</button><button onClick={()=>updateEvaluation(m.code,'status','Incompleta')} className={`w-6 h-6 rounded flex items-center justify-center border transition-all ${m.evaluation?.status==='Incompleta'?'bg-red-600 border-red-400':'border-slate-500 hover:border-red-400'}`} title="Incompleta">✕</button></div><div className="origin-left scale-75"><StarRating rating={m.evaluation?.stars || 0} setRating={(r)=>updateEvaluation(m.code,'stars',r)} /></div></td>
+                                                            <td className="p-3 text-center"><button onClick={() => deleteMission(m.code)} className="text-red-400 hover:text-red-300 hover:bg-red-900/30 p-2 rounded transition-colors" title="Excluir Missão"><LucideIcon name="trash-2" className="w-4 h-4" /></button></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {filteredMissions.length === 0 && <p className="p-8 text-center opacity-50 text-sm">Nenhuma missão encontrada com estes filtros.</p>}
                                     </div>
                                 </div>
                             )}
@@ -561,6 +631,11 @@
                                     <div className="flex gap-2"><input value={missionCode} onChange={e=>setMissionCode(e.target.value.toUpperCase())} className="flex-1 bg-slate-900 border border-slate-600 text-white rounded px-4 py-3 uppercase text-center font-mono tracking-widest text-lg" placeholder="CÓDIGO" /><Button onClick={()=>loadMission(missionCode)} variant="secondary" iconName="chevron-right">Continuar</Button></div>
                                 </div>
                             </Card>
+                            
+                             <div className="text-slate-500 text-xs mt-8">
+                                <p>Desenvolvido por <span className="text-cyan-500 font-bold">Adriano Sombra</span></p>
+                                <p className="opacity-50">Tecnologia Educacional & Robótica</p>
+                            </div>
                         </div>
                     </div>
                 );
