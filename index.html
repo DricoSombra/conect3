@@ -128,8 +128,32 @@
             console.error("Erro ao inicializar Firebase:", e);
         }
 
+        // Garante que a autenticação anônima esteja concluída antes de qualquer leitura/gravação (Evita falha no Tablet/PC)
+        const ensureAuth = async () => {
+            if (!auth) return null;
+            if (auth.currentUser) return auth.currentUser;
+            try {
+                const cred = await auth.signInAnonymously();
+                return cred.user;
+            } catch (e) {
+                console.warn("Aviso de conexão auth:", e);
+                return auth.currentUser;
+            }
+        };
+
+        // --- SENHAS FIXAS OFICIAIS POR UNIDADE ---
+        const PASSWORDS = {
+            ADMIN: "TE-Robotic@",
+            AD: "AD@2026",
+            LC: "LC@2027",
+            WS: "WS@2026"
+        };
+
+        // Documentos de Sistema salvos dentro da coleção 'missions' (que já possui permissão total no Firebase)
+        const DOC_STUDENTS_ID = "_CONFIG_STUDENTS_";
+        const DOC_MEETINGS_ID = "_CONFIG_MEETINGS_";
+
         // --- IMAGENS REAIS (logo.png e aribot.png) COM FALLBACK SVG ---
-        // No GitHub Pages carrega seus arquivos logo.png e aribot.png automaticamente.
         const ARIBOT_FALLBACK_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(`
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
                 <rect width="120" height="120" rx="28" fill="#1D4ED8"/>
@@ -193,14 +217,6 @@
             };
             reader.readAsDataURL(file);
         });
-
-        // --- SENHAS INICIAIS (SINCRONIZADAS COM O FIREBASE) ---
-        const INITIAL_PASSWORDS = {
-            ADMIN: "TE-Robotic@",
-            AD: "Aldeota@2026",
-            LC: "LC@2027",
-            WS: "WS@2026"
-        };
 
         // --- ESTRUTURA DINÂMICA DE PERGUNTAS (EDITÁVEL NA ÁREA DE DESENVOLVIMENTO) ---
         const INITIAL_MEETINGS_CONFIG = {
@@ -362,105 +378,6 @@
                     }
                 ]
             }
-        };
-
-        // --- BANCO DE ALUNOS PRÉ-CARREGADO ---
-        const INITIAL_STUDENTS_DB = {
-            "WS_2º_1_M": ["Davi Lucca", "Isabela Moraes", "Lorenzo Silva", "Manuela Azevedo", "Miguel Nogueira", "Sophia Martins"],
-            "WS_3º_1_M": ["Alice Castro", "Bernardo Gomes", "Enzo Ferreira", "Helena Dias", "Laura Cavalcante", "Theo Sampaio"],
-            "WS_4º_1_M": ["Arthur Pendragon", "Beatriz Fontes", "Caio Castro", "Fernanda Montenegro", "Gustavo Kuerten", "Lívia Andrade"],
-            "WS_5º_1_M": ["Daniela Rocha", "Gabriel Mendes", "Lucas Pinheiro", "Sofia Andrade", "Thiago Ribeiro", "Valentina Martins"],
-            "AD_5º_2_M": ["Ana Clara Souza", "Bruno Oliveira", "Carlos Eduardo Lima", "Marina Vasconcelos", "Pedro Henrique Costa", "Sofia Alencar"],
-            "AD_4º_1_T": ["Arthur Pendragon", "Beatriz Fontes", "Caio Castro", "Fernanda Montenegro", "Gustavo Kuerten"],
-            "LC_5º_1_M": ["Breno Cavalcante", "Cecília Meireles", "Davi Studart", "Ester Benevides", "Felipe Holanda", "Giovanna Távora"],
-            "WS_5º_1_T": ["Daniela Rocha", "Gabriel Mendes", "Lucas Pinheiro", "Sofia Andrade", "Thiago Ribeiro", "Valentina Martins"],
-            "WS_3º_2_M": ["Alice Castro", "Bernardo Gomes", "Enzo Ferreira", "Helena Dias", "Laura Cavalcante"]
-        };
-
-        const DEFAULT_FALLBACK_ROSTER = [
-            "Ana Beatriz Holanda",
-            "Breno Albuquerque",
-            "Carolina Vasconcelos",
-            "Davi Queiroz",
-            "Eduarda Studart",
-            "Felipe Benevides"
-        ];
-
-        // --- GERADOR DE 26 MISSÕES DE TESTE (SIMULANDO BANCO COMPLETO SEM CORTES) ---
-        const generateInitialMissions = () => {
-            const sedes = ['AD', 'LC', 'WS'];
-            const series = ['2º', '3º', '4º', '5º'];
-            const turnos = ['M', 'T'];
-            const projetos = [
-                "Rover Explorador de Marte", "Braço Hidráulico Separador", "Cancela Inteligente",
-                "Super Carro Seguidor", "Catapulta de Precisão", "Robô Reciclador",
-                "Guindaste Gigante", "Estação do Clima", "Ônibus Espacial"
-            ];
-            const alunosSample = [
-                ["Bruno Oliveira", "Ana Clara Souza", "Carlos Eduardo Lima"],
-                ["Gabriel Mendes", "Daniela Rocha", "Lucas Pinheiro"],
-                ["Alice Castro", "Bernardo Gomes", "Helena Dias"],
-                ["Breno Cavalcante", "Cecília Meireles", "Davi Studart"]
-            ];
-
-            const list = [];
-            for (let i = 1; i <= 26; i++) {
-                const campus = sedes[i % 3];
-                const grade = series[i % 4];
-                const num = (i % 9) + 1;
-                const shift = turnos[i % 2];
-                const trio = alunosSample[i % alunosSample.length];
-                const code = `M${String(i).padStart(2, '0')}X${campus}`;
-
-                list.push({
-                    code,
-                    level: (grade === '2º' || grade === '3º') ? 'junior' : 'senior',
-                    startedAt: new Date(Date.now() - i * 86400000).toISOString(),
-                    projectTitle: projetos[i % projetos.length],
-                    team: {
-                        classInfo: `${grade} ${num}-${shift} (${campus})`,
-                        campus,
-                        grade,
-                        builder: trio[0],
-                        programmer: trio[1],
-                        controller: trio[2]
-                    },
-                    meeting1: {
-                        date: new Date(Date.now() - i * 86400000).toLocaleDateString('pt-BR'),
-                        worldConnection: i % 2 === 0 ? "Viagem Espacial 🚀, Ciências & Descobertas 🔬" : "Mobilidade & Trânsito 🚗",
-                        resources: i % 3 === 0 ? "Força com Engrenagens ⚙️, Movimento com Motor 🔋" : "Visão com Sensor de Cor 🎨, Painel de Luz e Som 💡",
-                        prototypeGoal: "Girar ou se Mover 🔄, Detectar Objeto ou Cor 🎯",
-                        spikeBlocks: i % 2 === 0 ? ['start', 'motor', 'sensor'] : ['start', 'move', 'light'],
-                        photo: null,
-                        codePhoto: null
-                    },
-                    meeting2: {
-                        date: new Date(Date.now() - i * 86400000).toLocaleDateString('pt-BR'),
-                        memoryCheck: true,
-                        constructionChallenges: "Montagem Super Fluida ✨",
-                        bugsFixed: "Funcionou de primeira sem bugs! 🏆",
-                        testStatus: i % 4 === 0 ? "Quase lá! Faltou um detalhe 🤏" : "Missão Concluída com Sucesso! 🏆",
-                        spikeBlocks: ['start', 'loop', 'if', 'sensor', 'motor'],
-                        photo: null,
-                        codePhoto: null
-                    },
-                    meeting3: {
-                        date: new Date(Date.now() - i * 86400000).toLocaleDateString('pt-BR'),
-                        improvementType: "Código Mais Inteligente 🧠, Estrutura Mais Forte 💪",
-                        teamworkEval: "Respeitamos as funções de cada um 🤝, Cuidamos e guardamos as peças 📦",
-                        presentationFeeling: "O robô funcionou ao vivo! 🤩, Explicamos tudo com clareza 🎤",
-                        selfRating: (i % 2 === 0) ? 5 : 4,
-                        photo: null,
-                        teamPhoto: null
-                    },
-                    evaluation: {
-                        status: i % 3 === 0 ? '' : 'Completa',
-                        stars: i % 3 === 0 ? 0 : (i % 2 === 0 ? 5 : 4)
-                    },
-                    currentStep: 1
-                });
-            }
-            return list;
         };
 
         // --- BLOCOS DO SPIKE MANTENDO AS CORES OFICIAIS LEGO ---
@@ -756,10 +673,23 @@
             const [view, setView] = React.useState('landing');
             const [loading, setLoading] = React.useState(false);
             const [genPdf, setGenPdf] = React.useState(false);
-            const [studentsDb, setStudentsDb] = React.useState(INITIAL_STUDENTS_DB);
+
+            // Carrega imediatamente do cache local enquanto sincroniza com o Firebase (Sem nomes fictícios!)
+            const [studentsDb, setStudentsDb] = React.useState(() => {
+                try {
+                    const cached = localStorage.getItem('ari_students_v6');
+                    return cached ? JSON.parse(cached) : {};
+                } catch (e) { return {}; }
+            });
+
+            const [meetingsConfig, setMeetingsConfig] = React.useState(() => {
+                try {
+                    const cached = localStorage.getItem('ari_meetings_v6');
+                    return cached ? JSON.parse(cached) : INITIAL_MEETINGS_CONFIG;
+                } catch (e) { return INITIAL_MEETINGS_CONFIG; }
+            });
+
             const [missionsDb, setMissionsDb] = React.useState([]);
-            const [passwordsDb, setPasswordsDb] = React.useState(INITIAL_PASSWORDS);
-            const [meetingsConfig, setMeetingsConfig] = React.useState(INITIAL_MEETINGS_CONFIG);
             const [toast, setToast] = React.useState('');
 
             // Estado de Criação de Turma e Seleção de Alunos
@@ -777,20 +707,16 @@
             const [missionCodeInput, setMissionCodeInput] = React.useState('');
             const [missionData, setMissionData] = React.useState(null);
 
-            // Estado do Painel do Professor (RBAC + Abas Admin + Seleção em Massa)
+            // Estado do Painel do Professor
             const [teacherPass, setTeacherPass] = React.useState('');
             const [userRole, setUserRole] = React.useState(null); // 'ADMIN', 'AD', 'LC', 'WS'
-            const [teacherTab, setTeacherTab] = React.useState('missions'); // 'missions', 'dev-cms', 'passwords'
+            const [teacherTab, setTeacherTab] = React.useState('missions'); // 'missions', 'dev-cms'
             const [filterSede, setFilterSede] = React.useState('ALL');
             const [filterGrade, setFilterGrade] = React.useState('ALL');
             const [searchTerm, setSearchTerm] = React.useState('');
             const [selectedMissions, setSelectedMissions] = React.useState([]);
 
-            // Modal de Troca de Senha do Próprio Professor
-            const [showChangePassModal, setShowChangePassModal] = React.useState(false);
-            const [newOwnPassword, setNewOwnPassword] = React.useState('');
-
-            // Modal de Confirmação de Exclusão (Substitui window.confirm)
+            // Modal de Confirmação de Exclusão de Relatórios
             const [confirmDeleteModal, setConfirmDeleteModal] = React.useState(null);
 
             // Estado da Área de Desenvolvimento (Editor de Encontros)
@@ -802,80 +728,90 @@
                 setTimeout(() => setToast(''), 3500);
             };
 
-            // Referências do Firestore (Mantendo a mesma coleção 'missions' onde estão os relatórios salvos)
+            // Coleção principal 'missions' (onde o Firebase já tem permissão liberada)
             const getMissionsCol = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('missions');
-            const getStudentsCol = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('students');
-            const getSettingsCol = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('settings');
 
-            // Inicialização: Autenticação + Carregamento de Configurações e Alunos do Firebase
-            React.useEffect(() => {
-                if (!auth || !db) {
-                    setMissionsDb(generateInitialMissions());
-                    return;
-                }
-                const initFirebase = async () => {
-                    try {
-                        await auth.signInAnonymously();
-                    } catch (e) {
-                        console.warn("Aviso Auth:", e);
+            // Sincroniza Listas de Alunos e Configurações dos Encontros na inicialização
+            const syncSystemConfigsFromFirebase = async () => {
+                if (!db) return;
+                await ensureAuth();
+                try {
+                    const stuSnap = await getMissionsCol().doc(DOC_STUDENTS_ID).get();
+                    if (stuSnap.exists && stuSnap.data().classes) {
+                        const cloudClasses = stuSnap.data().classes;
+                        setStudentsDb(cloudClasses);
+                        try { localStorage.setItem('ari_students_v6', JSON.stringify(cloudClasses)); } catch (e) {}
                     }
-                };
-                initFirebase();
+                } catch (e) {
+                    console.warn("Aviso ao ler turmas:", e);
+                }
 
-                const unsub = auth.onAuthStateChanged(async (u) => {
-                    setUser(u);
-                    if (u && db) {
-                        // 1. Carrega Senhas salvas
-                        try {
-                            const passSnap = await getSettingsCol().doc('passwords').get();
-                            if (passSnap.exists) {
-                                setPasswordsDb(prev => ({ ...prev, ...passSnap.data() }));
-                            }
-                        } catch (e) {}
+                try {
+                    const cfgSnap = await getMissionsCol().doc(DOC_MEETINGS_ID).get();
+                    if (cfgSnap.exists && cfgSnap.data().config) {
+                        const cloudCfg = cfgSnap.data().config;
+                        setMeetingsConfig(cloudCfg);
+                        try { localStorage.setItem('ari_meetings_v6', JSON.stringify(cloudCfg)); } catch (e) {}
+                    }
+                } catch (e) {
+                    console.warn("Aviso ao ler config encontros:", e);
+                }
+            };
 
-                        // 2. Carrega Configuração de Encontros (Modo Desenvolvedor)
-                        try {
-                            const cfgSnap = await getSettingsCol().doc('meetingsConfig').get();
-                            if (cfgSnap.exists && cfgSnap.data().config) {
-                                setMeetingsConfig(cfgSnap.data().config);
-                            }
-                        } catch (e) {}
-
-                        // 3. Carrega Listas de Alunos importadas por CSV
-                        try {
-                            const stuSnap = await getStudentsCol().get();
-                            if (!stuSnap.empty) {
-                                const loadedStudents = {};
-                                stuSnap.docs.forEach(d => {
-                                    if (d.data().list) loadedStudents[d.id] = d.data().list;
-                                });
-                                setStudentsDb(prev => ({ ...prev, ...loadedStudents }));
-                            }
-                        } catch (e) {}
+            React.useEffect(() => {
+                if (!auth || !db) return;
+                let mounted = true;
+                ensureAuth().then((u) => {
+                    if (mounted && u) {
+                        setUser(u);
+                        syncSystemConfigsFromFirebase();
                     }
                 });
-                return () => unsub && unsub();
+                const unsub = auth.onAuthStateChanged((u) => {
+                    if (mounted && u) {
+                        setUser(u);
+                        syncSystemConfigsFromFirebase();
+                    }
+                });
+                return () => {
+                    mounted = false;
+                    if (unsub) unsub();
+                };
             }, []);
 
-            // Carrega TODOS os relatórios do Firebase (Sem limite de 20 ou 200 registros)
+            // Carrega TODOS os relatórios do Firebase aguardando a autenticação (Resolve falha no Tablet e PC)
             const fetchAllMissionsFromFirebase = async () => {
                 if (!db) return;
                 setLoading(true);
                 try {
+                    await ensureAuth();
                     const snap = await getMissionsCol().get();
-                    const docs = snap.docs.map(d => d.data());
+                    const docs = snap.docs
+                        .filter(d => !d.id.startsWith('_CONFIG_') && d.data() && d.data().code)
+                        .map(d => d.data());
                     docs.sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0));
                     setMissionsDb(docs);
                 } catch (e) {
                     console.error("Erro ao buscar relatórios:", e);
-                    showToast("⚠️ Erro ao listar relatórios do banco.");
+                    // Retentativa automática rápida caso o Wi-Fi do tablet tenha oscilado
+                    setTimeout(async () => {
+                        try {
+                            await ensureAuth();
+                            const retrySnap = await getMissionsCol().get();
+                            const retryDocs = retrySnap.docs
+                                .filter(d => !d.id.startsWith('_CONFIG_') && d.data() && d.data().code)
+                                .map(d => d.data());
+                            retryDocs.sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0));
+                            setMissionsDb(retryDocs);
+                        } catch (err2) {}
+                    }, 1200);
                 }
                 setLoading(false);
             };
 
+            // Lista de alunos da turma selecionada (Sem nomes falsos de teste!)
             const currentClassKey = `${newClass.campus}_${newClass.grade}_${newClass.number}_${newClass.shift}`;
-            const exactStudents = studentsDb[currentClassKey];
-            const activeRoster = (exactStudents && exactStudents.length > 0) ? exactStudents : DEFAULT_FALLBACK_ROSTER;
+            const activeRoster = studentsDb[currentClassKey] || [];
 
             const updateClassFilter = (field, value) => {
                 setNewClass(prev => ({
@@ -894,6 +830,7 @@
                 }
 
                 setLoading(true);
+                await ensureAuth();
                 const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
                 const code = Array(6).fill(0).map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
                 const level = (newClass.grade === '2º' || newClass.grade === '3º') ? 'junior' : 'senior';
@@ -933,7 +870,7 @@
                 setLoading(false);
             };
 
-            // Carregar Missão por Código direto do Firebase
+            // Carregar Missão por Código direto do Firebase (Aguarda autenticação para funcionar de primeira no Tablet)
             const handleLoadMission = async (codeToLoad, targetView = 'dashboard') => {
                 const clean = (codeToLoad || '').toUpperCase().trim();
                 if (!clean || clean.length < 4) {
@@ -941,9 +878,10 @@
                 }
                 setLoading(true);
                 try {
+                    await ensureAuth();
                     if (db) {
                         const snap = await getMissionsCol().doc(clean).get();
-                        if (snap.exists) {
+                        if (snap.exists && !clean.startsWith('_CONFIG_')) {
                             const data = snap.data();
                             setMissionData({
                                 ...data,
@@ -976,6 +914,7 @@
             const handleSaveMission = async () => {
                 if (!missionData || !missionData.code) return;
                 setLoading(true);
+                await ensureAuth();
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updated = { ...missionData };
                 if (updated.currentStep >= 1 && !updated.meeting1?.date) updated.meeting1.date = today;
@@ -1006,14 +945,14 @@
                 showToast("📸 Foto otimizada e anexada! +150 XP!");
             };
 
-            // Login Docente com Busca Automática de Todos os Relatórios
+            // Login Docente com Busca Automática e Segura
             const loginWithPassword = async (passToUse) => {
                 const p = (passToUse !== undefined ? passToUse : teacherPass).trim();
                 let matchedRole = null;
-                if (p === passwordsDb.ADMIN) matchedRole = 'ADMIN';
-                else if (p === passwordsDb.AD) matchedRole = 'AD';
-                else if (p === passwordsDb.LC) matchedRole = 'LC';
-                else if (p === passwordsDb.WS) matchedRole = 'WS';
+                if (p === PASSWORDS.ADMIN) matchedRole = 'ADMIN';
+                else if (p === PASSWORDS.AD) matchedRole = 'AD';
+                else if (p === PASSWORDS.LC) matchedRole = 'LC';
+                else if (p === PASSWORDS.WS) matchedRole = 'WS';
 
                 if (!matchedRole) {
                     return showToast("❌ Senha incorreta! Verifique com a coordenação.");
@@ -1023,43 +962,28 @@
                 setFilterSede(matchedRole === 'ADMIN' ? 'ALL' : matchedRole);
                 setTeacherTab('missions');
                 setView('teacher-panel');
+                await syncSystemConfigsFromFirebase();
                 await fetchAllMissionsFromFirebase();
                 showToast(matchedRole === 'ADMIN'
                     ? "👑 Bem-vindo, Administrador Geral!"
                     : `🏫 Bem-vindo, Professor(a) da Sede ${matchedRole}!`);
             };
 
-            // Troca de senha pelo próprio professor logado (Salva no Firebase)
-            const handleSaveOwnPassword = async () => {
-                if (!newOwnPassword || newOwnPassword.trim().length < 4) {
-                    return showToast("⚠️ Digite uma nova senha com pelo menos 4 caracteres.");
-                }
-                const updated = { ...passwordsDb, [userRole]: newOwnPassword.trim() };
-                setPasswordsDb(updated);
-                try {
-                    if (db) await getSettingsCol().doc('passwords').set(updated, { merge: true });
-                } catch (e) {}
-                setNewOwnPassword('');
-                setShowChangePassModal(false);
-                showToast(`🔑 Sua senha (${userRole}) foi atualizada com sucesso!`);
-            };
-
-            // Salvar Senhas Editadas pelo Admin no Firebase
-            const handleAdminSavePasswords = async () => {
-                try {
-                    if (db) await getSettingsCol().doc('passwords').set(passwordsDb, { merge: true });
-                    showToast("🔐 Senhas das sedes salvas no Firebase!");
-                } catch (e) {
-                    showToast("⚠️ Erro ao salvar senhas.");
-                }
-            };
-
-            // Salvar Estrutura de Encontros Editada na Área de Desenvolvimento
+            // Salvar Estrutura de Encontros Editada na Área de Desenvolvimento (Dentro da coleção autorizada 'missions')
             const saveMeetingsConfigToFirebase = async (nextConfig) => {
                 setMeetingsConfig(nextConfig);
+                try { localStorage.setItem('ari_meetings_v6', JSON.stringify(nextConfig)); } catch (e) {}
                 try {
-                    if (db) await getSettingsCol().doc('meetingsConfig').set({ config: nextConfig });
-                } catch (e) {}
+                    await ensureAuth();
+                    if (db) {
+                        await getMissionsCol().doc(DOC_MEETINGS_ID).set({
+                            config: nextConfig,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                } catch (e) {
+                    console.error("Erro ao salvar config de encontros:", e);
+                }
             };
 
             const updateMeetingField = (mNum, field, val) => {
@@ -1143,7 +1067,7 @@
                 showToast("🗑️ Questão removida.");
             };
 
-            // Importação de Alunos via CSV (Salva por Turma no Firebase)
+            // Importação de Alunos via CSV (Salva definitivamente no documento _CONFIG_STUDENTS_ dentro de 'missions')
             const processCSVText = async (text) => {
                 const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
                 const updated = { ...studentsDb };
@@ -1172,20 +1096,31 @@
                     }
                 });
 
+                if (count === 0) {
+                    return showToast("⚠️ Nenhum aluno válido encontrado. Verifique o formato Serie;Turma;Turno;Campus;Nome");
+                }
+
+                // Substitui automaticamente a lista antiga da mesma turma pelos novos alunos
                 for (const key of Object.keys(changedKeys)) {
                     updated[key] = changedKeys[key].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-                    try {
-                        if (db) {
-                            await getStudentsCol().doc(key).set({
-                                list: updated[key],
-                                updatedAt: new Date().toISOString()
-                            });
-                        }
-                    } catch (e) {}
                 }
 
                 setStudentsDb(updated);
-                showToast(`✅ ${count} alunos importados e salvos no Firebase!`);
+                try { localStorage.setItem('ari_students_v6', JSON.stringify(updated)); } catch (e) {}
+
+                try {
+                    await ensureAuth();
+                    if (db) {
+                        await getMissionsCol().doc(DOC_STUDENTS_ID).set({
+                            classes: updated,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                    showToast(`✅ ${count} alunos importados e salvos permanentemente!`);
+                } catch (e) {
+                    console.error("Erro ao gravar alunos no Firebase:", e);
+                    showToast("⚠️ Salvo localmente, mas houve erro ao sincronizar com a nuvem.");
+                }
             };
 
             const handleCSVFileSelect = (e) => {
@@ -1194,6 +1129,28 @@
                 const reader = new FileReader();
                 reader.onload = (ev) => processCSVText(ev.target.result);
                 reader.readAsText(file);
+                e.target.value = '';
+            };
+
+            // Excluir Turma Cadastrada com 1 Clique no botão '✕'
+            const handleDeleteClassRoster = async (classKey) => {
+                const updated = { ...studentsDb };
+                delete updated[classKey];
+                setStudentsDb(updated);
+                try { localStorage.setItem('ari_students_v6', JSON.stringify(updated)); } catch (e) {}
+
+                try {
+                    await ensureAuth();
+                    if (db) {
+                        await getMissionsCol().doc(DOC_STUDENTS_ID).set({
+                            classes: updated,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                    showToast(`🗑️ Turma ${classKey.replaceAll('_', ' ')} removida!`);
+                } catch (e) {
+                    showToast("⚠️ Erro ao remover turma na nuvem.");
+                }
             };
 
             const updateMissionEval = async (code, field, val) => {
@@ -1208,6 +1165,7 @@
                     }));
                 }
                 try {
+                    await ensureAuth();
                     if (db) {
                         await getMissionsCol().doc(code).set({
                             evaluation: { [field]: val }
@@ -1219,6 +1177,7 @@
             const confirmDeleteMissions = async (codesArray) => {
                 setConfirmDeleteModal(null);
                 setLoading(true);
+                await ensureAuth();
                 for (const c of codesArray) {
                     try {
                         if (db) await getMissionsCol().doc(c).delete();
@@ -1281,7 +1240,7 @@
                                     disabled={loading}
                                     className="btn-3d w-full py-4 bg-blue-700 hover:bg-blue-600 border-b-4 border-blue-950 text-white rounded-2xl font-kids font-bold text-lg uppercase shadow-lg"
                                 >
-                                    {loading ? 'Carregando Banco...' : 'Entrar no Painel'}
+                                    {loading ? 'Conectando ao Banco...' : 'Entrar no Painel'}
                                 </button>
                             </div>
                         </div>
@@ -1290,7 +1249,7 @@
             }
 
             // =================================================================
-            // VIEW 2: PAINEL DO PROFESSOR (BUSCA GLOBAL + CSV + MODO DEV + SENHAS)
+            // VIEW 2: PAINEL DO PROFESSOR (BUSCA GLOBAL + CSV + MODO DEV)
             // =================================================================
             if (view === 'teacher-panel') {
                 const effectiveSede = userRole === 'ADMIN' ? filterSede : userRole;
@@ -1321,6 +1280,9 @@
                     setSelectedMissions(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
                 };
 
+                const registeredClassesList = Object.entries(studentsDb)
+                    .filter(([key]) => effectiveSede === 'ALL' || key.startsWith(effectiveSede));
+
                 return (
                     <div className="min-h-screen p-4 md:p-6 animate-pop">
                         <div className="max-w-6xl mx-auto space-y-6">
@@ -1336,64 +1298,22 @@
                                             </span>
                                         </div>
                                         <p className="text-xs md:text-sm font-bold text-slate-500 mt-1">
-                                            Exibindo <strong>{visibleMissions.length}</strong> de <strong>{allCampusMissions.length}</strong> relatórios salvos no Firebase.
+                                            {loading
+                                                ? "⏳ Sincronizando relatórios com o Firebase..."
+                                                : <>Exibindo <strong>{visibleMissions.length}</strong> de <strong>{allCampusMissions.length}</strong> relatórios salvos no Firebase.</>}
                                         </p>
                                     </div>
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
                                     <button
-                                        onClick={fetchAllMissionsFromFirebase}
-                                        className="btn-3d px-4 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border-b-4 border-blue-200 text-xs font-black text-blue-900"
-                                    >
-                                        🔄 Atualizar Lista
-                                    </button>
-                                    <button
-                                        onClick={() => setShowChangePassModal(true)}
-                                        className="btn-3d px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 border-b-4 border-amber-600 text-xs font-black text-blue-950"
-                                    >
-                                        🔑 Alterar Minha Senha
-                                    </button>
-                                    <button
                                         onClick={() => { setView('landing'); setUserRole(null); setTeacherPass(''); }}
-                                        className="btn-3d px-4 py-2.5 rounded-2xl bg-blue-700 hover:bg-blue-600 border-b-4 border-blue-950 text-xs font-black text-white uppercase"
+                                        className="btn-3d px-5 py-2.5 rounded-2xl bg-blue-700 hover:bg-blue-600 border-b-4 border-blue-950 text-xs font-black text-white uppercase"
                                     >
                                         Sair do Painel
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Modal para o Professor Criar/Trocar sua Própria Senha */}
-                            {showChangePassModal && (
-                                <div className="bg-blue-900 text-white p-5 rounded-3xl border-4 border-amber-400 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-pop">
-                                    <div>
-                                        <span className="text-xs font-black uppercase text-amber-300">Segurança da Sede ({userRole})</span>
-                                        <h3 className="font-kids font-bold text-xl">Criar Nova Senha Pessoal</h3>
-                                        <p className="text-xs text-blue-200">Digite a nova senha que você deseja usar para entrar na sua Área Restrita:</p>
-                                    </div>
-                                    <div className="flex gap-2 w-full sm:w-auto">
-                                        <input
-                                            type="text"
-                                            value={newOwnPassword}
-                                            onChange={e => setNewOwnPassword(e.target.value)}
-                                            placeholder="Nova senha..."
-                                            className="bg-white text-blue-950 font-extrabold px-4 py-2.5 rounded-2xl text-sm focus:outline-none"
-                                        />
-                                        <button
-                                            onClick={handleSaveOwnPassword}
-                                            className="btn-3d px-5 py-2.5 bg-amber-400 hover:bg-amber-300 border-b-4 border-amber-600 text-blue-950 font-black text-xs rounded-2xl uppercase"
-                                        >
-                                            Salvar
-                                        </button>
-                                        <button
-                                            onClick={() => setShowChangePassModal(false)}
-                                            className="px-3 py-2.5 bg-blue-800 hover:bg-blue-700 text-white font-black text-xs rounded-2xl"
-                                        >
-                                            Cancelar
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Modal Customizado de Confirmação de Exclusão */}
                             {confirmDeleteModal && (
@@ -1445,17 +1365,6 @@
                                     >
                                         <span>🛠️</span>
                                         <span>Área de Desenvolvimento (Editar Encontros)</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setTeacherTab('passwords')}
-                                        className={`btn-3d px-5 py-3 rounded-2xl font-kids font-bold text-base border-2 border-b-4 flex items-center gap-2 ${
-                                            teacherTab === 'passwords'
-                                                ? 'bg-blue-700 text-white border-blue-950 shadow-md'
-                                                : 'bg-white text-blue-900 border-blue-200 hover:bg-blue-50'
-                                        }`}
-                                    >
-                                        <span>🔐</span>
-                                        <span>Senhas dos Professores (AD / LC / WS)</span>
                                     </button>
                                 </div>
                             )}
@@ -1647,52 +1556,10 @@
                                 </div>
                             )}
 
-                            {/* ABA ADMIN 3: GESTÃO DE SENHAS DOS PROFESSORES POR SEDE */}
-                            {userRole === 'ADMIN' && teacherTab === 'passwords' && (
-                                <div className="bg-white p-6 rounded-3xl border-2 border-blue-200 shadow-sm space-y-5 animate-pop">
-                                    <div>
-                                        <h3 className="font-kids font-bold text-2xl text-blue-950">🔐 Gerenciamento de Senhas por Sede</h3>
-                                        <p className="text-sm font-bold text-slate-500">
-                                            Cada professor pode alterar a própria senha no botão superior, ou você pode definir/redefinir as senhas de cada sede abaixo:
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {[
-                                            { role: 'ADMIN', title: '👑 Administrador Geral (Você)', desc: 'Acesso Total (AD, LC, WS) + Modo Desenvolvedor' },
-                                            { role: 'AD', title: '🏫 Professor Sede Aldeota (AD)', desc: 'Acesso restrito aos alunos e relatórios de Aldeota' },
-                                            { role: 'LC', title: '🏫 Professor Sede Luciano Carneiro (LC)', desc: 'Acesso restrito aos alunos e relatórios de Luciano Carneiro' },
-                                            { role: 'WS', title: '🏫 Professor Sede Washington Soares (WS)', desc: 'Acesso restrito aos alunos e relatórios de Washington Soares' }
-                                        ].map(item => (
-                                            <div key={item.role} className="p-5 rounded-3xl bg-blue-50/50 border-2 border-blue-200 space-y-3">
-                                                <div>
-                                                    <h4 className="font-kids font-bold text-lg text-blue-950">{item.title}</h4>
-                                                    <p className="text-xs font-bold text-slate-500">{item.desc}</p>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={passwordsDb[item.role]}
-                                                        onChange={e => setPasswordsDb(prev => ({ ...prev, [item.role]: e.target.value }))}
-                                                        className="flex-1 bg-white border-2 border-blue-300 rounded-2xl px-4 py-2.5 font-mono font-black text-blue-950 text-sm"
-                                                    />
-                                                    <button
-                                                        onClick={handleAdminSavePasswords}
-                                                        className="btn-3d px-4 py-2.5 bg-blue-700 hover:bg-blue-600 border-b-4 border-blue-950 text-white rounded-2xl text-xs font-black uppercase"
-                                                    >
-                                                        Salvar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* ABA PADRÃO: RELATÓRIOS, BUSCA GLOBAL E IMPORTAÇÃO CSV */}
                             {(userRole !== 'ADMIN' || teacherTab === 'missions') && (
                                 <>
-                                    {/* Importador de Alunos CSV */}
+                                    {/* Importador de Alunos CSV + Botão '✕' para Excluir Turmas */}
                                     <div className="bg-white border-2 border-blue-200 rounded-3xl p-5 shadow-sm space-y-4">
                                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                             <div>
@@ -1703,21 +1570,33 @@
                                                     Colunas da planilha: <code className="bg-blue-50 text-blue-900 px-2 py-0.5 rounded">Serie;Turma;Turno;Campus;Nome</code> (Ex: 5º;1;M;WS;Nome do Aluno)
                                                 </p>
                                             </div>
-                                            <label className="btn-3d px-5 py-3 bg-amber-400 hover:bg-amber-300 border-b-4 border-amber-600 text-blue-950 rounded-2xl text-xs font-black uppercase cursor-pointer">
+                                            <label className="btn-3d px-5 py-3 bg-amber-400 hover:bg-amber-300 border-b-4 border-amber-600 text-blue-950 rounded-2xl text-xs font-black uppercase cursor-pointer shrink-0">
                                                 📂 Enviar Planilha .CSV
                                                 <input type="file" accept=".csv,.txt" onChange={handleCSVFileSelect} className="hidden" />
                                             </label>
                                         </div>
 
                                         <div className="flex flex-wrap gap-2 pt-2 border-t border-blue-50 items-center">
-                                            <span className="text-xs font-black uppercase text-slate-400">Turmas com lista de alunos cadastrada:</span>
-                                            {Object.entries(studentsDb)
-                                                .filter(([key]) => effectiveSede === 'ALL' || key.startsWith(effectiveSede))
-                                                .map(([key, list]) => (
-                                                    <span key={key} className="text-xs bg-blue-50 border border-blue-200 px-3 py-1 rounded-full text-blue-900 font-bold">
-                                                        {key.replaceAll('_', ' ')} <strong className="text-blue-700">({list.length} alunos)</strong>
+                                            <span className="text-xs font-black uppercase text-slate-400">Turmas cadastradas:</span>
+                                            {registeredClassesList.length === 0 ? (
+                                                <span className="text-xs font-bold text-slate-400 italic">
+                                                    Nenhuma turma importada ainda. Envie uma planilha .CSV acima!
+                                                </span>
+                                            ) : (
+                                                registeredClassesList.map(([key, list]) => (
+                                                    <span key={key} className="text-xs bg-blue-50 border border-blue-200 pl-3 pr-2 py-1 rounded-full text-blue-900 font-bold flex items-center gap-1.5">
+                                                        <span>{key.replaceAll('_', ' ')} <strong className="text-blue-700">({list.length} alunos)</strong></span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteClassRoster(key)}
+                                                            className="w-5 h-5 rounded-full bg-rose-100 hover:bg-rose-500 text-rose-600 hover:text-white flex items-center justify-center font-black text-[10px] transition-colors"
+                                                            title="Excluir esta turma"
+                                                        >
+                                                            ✕
+                                                        </button>
                                                     </span>
-                                                ))}
+                                                ))
+                                            )}
                                         </div>
                                     </div>
 
@@ -1901,7 +1780,9 @@
                                             </table>
                                             {visibleMissions.length === 0 && (
                                                 <div className="p-10 text-center text-slate-400 font-bold">
-                                                    Nenhum relatório encontrado com estes filtros.
+                                                    {loading
+                                                        ? "⏳ Carregando relatórios salvos na nuvem..."
+                                                        : "Nenhum relatório encontrado com estes filtros."}
                                                 </div>
                                             )}
                                         </div>
@@ -1983,7 +1864,7 @@
                                 </div>
                             </div>
 
-                            {/* Encontros 1, 2 e 3 (Exibe dados novos e antigos para impressão completa) */}
+                            {/* Encontros 1, 2 e 3 */}
                             <div className="flex flex-col gap-2 flex-grow">
                                 {/* Encontro 01 */}
                                 <div className="border border-blue-300 rounded-xl text-xs avoid-break flex-1 flex flex-col overflow-hidden">
@@ -2118,7 +1999,7 @@
             }
 
             // =================================================================
-            // VIEW 4: DASHBOARD DAS CRIANÇAS (ENCONTROS 1, 2 E 3)
+            // VIEW 4: DASHBOARD DAS CRIANÇAS (ENCONTROS 1, 2 E 3 - CABEÇALHO DESTRAVADO)
             // =================================================================
             if (view === 'dashboard' && missionData) {
                 const gamification = calculateGamification(missionData);
@@ -2128,7 +2009,8 @@
 
                 return (
                     <div className="min-h-screen p-3 md:p-6 pb-24 animate-pop">
-                        <header className="max-w-5xl mx-auto mb-6 bg-white border-2 border-blue-200 rounded-3xl p-4 md:p-5 shadow-md sticky top-2 z-40">
+                        {/* Cabeçalho destravado (sem sticky) para não cobrir as questões ao rolar */}
+                        <header className="max-w-5xl mx-auto mb-6 bg-white border-2 border-blue-200 rounded-3xl p-4 md:p-5 shadow-md">
                             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                                 <div className="flex items-center gap-3.5">
                                     <AribotAvatar className="w-14 h-14 border-2 border-blue-200 shadow-sm" />
@@ -2497,7 +2379,7 @@
 
                             <hr className="border-blue-100 border-dashed" />
 
-                            {/* PASSO 2: ESCOLHER OS ALUNOS NA LISTA (OU DIGITAR SE A TURMA AINDA NÃO FOI IMPORTADA) */}
+                            {/* PASSO 2: ESCOLHER OS ALUNOS NA LISTA DA TURMA (OU DIGITAR SE AINDA NÃO IMPORTADA) */}
                             <div className="space-y-4">
                                 <div className="flex flex-wrap justify-between items-center gap-2">
                                     <div className="flex items-center gap-3">
@@ -2510,8 +2392,8 @@
                                             </h2>
                                             <p className="text-xs font-extrabold text-blue-600">
                                                 {activeRoster.length > 0
-                                                    ? `✨ Lista aberta para: ${newClass.grade} Ano • Turma ${newClass.number}-${newClass.shift} (${newClass.campus})`
-                                                    : `✏️ Digite os nomes para: ${newClass.grade} Ano • Turma ${newClass.number}-${newClass.shift} (${newClass.campus})`}
+                                                    ? `✨ Lista carregada (${activeRoster.length} alunos): ${newClass.grade} Ano • Turma ${newClass.number}-${newClass.shift} (${newClass.campus})`
+                                                    : `✏️ Digite os nomes abaixo (${newClass.grade} Ano • Turma ${newClass.number}-${newClass.shift} ${newClass.campus})`}
                                             </p>
                                         </div>
                                     </div>
@@ -2598,6 +2480,7 @@
                                 <input
                                     value={missionCodeInput}
                                     onChange={e => setMissionCodeInput(e.target.value.toUpperCase())}
+                                    onKeyDown={e => e.key === 'Enter' && handleLoadMission(missionCodeInput)}
                                     placeholder="CÓDIGO"
                                     className="w-full sm:flex-1 bg-white border-2 border-blue-300 rounded-2xl px-4 py-2.5 text-center font-mono font-black text-lg text-blue-950 uppercase"
                                 />
@@ -2607,7 +2490,7 @@
                                     disabled={loading}
                                     className="btn-3d w-full sm:w-auto px-6 py-3 bg-amber-400 hover:bg-amber-300 border-b-4 border-amber-600 text-blue-950 rounded-2xl font-kids font-bold text-base uppercase"
                                 >
-                                    Continuar ➔
+                                    {loading ? 'Buscando...' : 'Continuar ➔'}
                                 </button>
                             </div>
                         </div>
